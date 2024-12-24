@@ -191,11 +191,57 @@ void rotatePointXY(Point3D *point, Point3D center, double theta) {
     // No need to modify point->z as it stays the same
 }
 
+void rotatePointXZ(Point3D *point, Point3D center, double theta) {
+    // Translate point to origin
+    double translatedX = point->x - center.x;
+    double translatedZ = point->z - center.z;
+
+    // Apply rotation formula around the Y-axis (XZ plane)
+    double rotatedX = translatedX * cos(theta) - translatedZ * sin(theta);
+    double rotatedZ = translatedX * sin(theta) + translatedZ * cos(theta);
+
+    // Translate back to original position
+    point->x = rotatedX + center.x;
+    point->z = rotatedZ + center.z;
+    // Y-coordinate remains unchanged
+}
+
+void rotatePointYZ(Point3D *point, Point3D center, double theta) {
+    // Translate point to origin
+    double translatedY = point->y - center.y;
+    double translatedZ = point->z - center.z;
+
+    // Apply rotation formula around the X-axis (YZ plane)
+    double rotatedY = translatedY * cos(theta) - translatedZ * sin(theta);
+    double rotatedZ = translatedY * sin(theta) + translatedZ * cos(theta);
+
+    // Translate back to original position
+    point->y = rotatedY + center.y;
+    point->z = rotatedZ + center.z;
+    // X-coordinate remains unchanged
+}
+
+
+
 void rotateFaceXY(Face *face, Point3D center, double theta){
     rotatePointXY(&face->v1, center,theta);
     rotatePointXY(&face->v2, center,theta);
     rotatePointXY(&face->v3, center,theta);
     rotatePointXY(&face->v4, center,theta);
+}
+
+void rotateFaceXZ(Face *face, Point3D center, double theta){
+    rotatePointXZ(&face->v1, center,theta);
+    rotatePointXZ(&face->v2, center,theta);
+    rotatePointXZ(&face->v3, center,theta);
+    rotatePointXZ(&face->v4, center,theta);
+}
+
+void rotateFaceYZ(Face *face, Point3D center, double theta){
+    rotatePointYZ(&face->v1, center,theta);
+    rotatePointYZ(&face->v2, center,theta);
+    rotatePointYZ(&face->v3, center,theta);
+    rotatePointYZ(&face->v4, center,theta);
 }
 
 int main() {
@@ -210,10 +256,10 @@ int main() {
 
     getCenterScreen(center); //refreshes the center of the screen
 
-    Point3D v1 = {-3.0, -3.0, 0.0};
-    Point3D v2 = {3.0, -3.0, 0.0};
-    Point3D v3 = {3.0, 3.0, 0.0};
-    Point3D v4 = {-3.0, 3.0, 0.0};
+    Point3D v1 = {-5.0, -5.0, 0.0};
+    Point3D v2 = {5.0, -5.0, 0.0};
+    Point3D v3 = {5.0, 5.0, 0.0};
+    Point3D v4 = {-5.0, 5.0, 0.0};
 
     // Create a face with these vertices
     Face face = {v1, v2, v3, v4, '#'}; // Use '#' to differentiate the face
@@ -236,6 +282,8 @@ int main() {
     //printf("x : %d\ny : %d\nz : %d\n\n", point2.x,point2.y,point2.z);
 
     rotateFaceXY(&face, pontoCentro, angle);
+    rotateFaceXZ(&face, pontoCentro, angle);
+    rotateFaceXZ(&face, pontoCentro, angle);
     printFace(face, center);
 
     req.tv_sec = 0;                 // Seconds
