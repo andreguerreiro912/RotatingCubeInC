@@ -7,6 +7,10 @@ typedef struct {
     float x, y, z; 
 } Point3D;
 
+typedef struct{
+    float x,y;
+} Point2D;
+
 typedef struct {
     Point3D v1;  // First vertex
     Point3D v2;  // Second vertex
@@ -14,6 +18,14 @@ typedef struct {
     Point3D v4;  // Fourth vertex
     char depthChar; // Char that will be used to differentiate the face of the cube
 } Face;
+
+Point2D projectTo2D(Point3D p) {
+    // For simplicity, this is an orthogonal projection (ignoring depth).
+    Point2D p2d;
+    p2d.x = p.x;  // Just drop the z-coordinate for simplicity (orthogonal)
+    p2d.y = p.y;  // Keep the y-coordinate
+    return p2d;
+}
 
 void getCenterScreen(int center[2]) {
     CONSOLE_SCREEN_BUFFER_INFO csbi;
@@ -54,7 +66,7 @@ void printPoint3D(Point3D point, int center[2], char symbol) {
 
 
 // Function to draw a line between two points (using Bresenham's line algorithm)
-void drawLine(int x1, int y1, int x2, int y2) {
+void drawLine(int x1, int y1, int x2, int y2, char faceChar) {
     int dx = abs(x2 - x1);
     int dy = abs(y2 - y1);
     int sx = (x1 < x2) ? 1 : -1;
@@ -63,7 +75,7 @@ void drawLine(int x1, int y1, int x2, int y2) {
 
     while (1) {
         moveCursor(x1, y1);
-        putchar('*');  // Or any character you want to use for the line
+        putchar(faceChar);  // Or any character you want to use for the line
 
         if (x1 == x2 && y1 == y2)
             break;
@@ -110,14 +122,68 @@ void printFace(Face face, int center[2]) {
     */
     // Optionally, draw lines between the points (edges)
     // You can use a function like drawLine() for better visual representation.
-    drawLine(x1, y1, x2, y2);
-    drawLine(x2, y2, x3, y3);
-    drawLine(x3, y3, x4, y4);
-    drawLine(x4, y4, x1, y1);
+    drawLine(x1, y1, x2, y2, face.depthChar);
+    drawLine(x2, y2, x3, y3, face.depthChar);
+    drawLine(x3, y3, x4, y4, face.depthChar);
+    drawLine(x4, y4, x1, y1, face.depthChar);
     
     fflush(stdout); // Ensure output is shown immediately
 }
 
+int pointInFace(Point3D point, Face face) {
+    // Calculate vectors for each edge of the face
+    Point3D v1v2 = {face.v2.x - face.v1.x, face.v2.y - face.v1.y, face.v2.z - face.v1.z};
+    Point3D v2v3 = {face.v3.x - face.v2.x, face.v3.y - face.v2.y, face.v3.z - face.v2.z};
+    Point3D v3v4 = {face.v4.x - face.v3.x, face.v4.y - face.v3.y, face.v4.z - face.v3.z};
+    Point3D v4v1 = {face.v1.x - face.v4.x, face.v1.y - face.v4.y, face.v1.z - face.v4.z};
+    
+    // Vectors from the point to each vertex of the face
+    Point3D p1 = {point.x - face.v1.x, point.y - face.v1.y, point.z - face.v1.z};
+    Point3D p2 = {point.x - face.v2.x, point.y - face.v2.y, point.z - face.v2.z};
+    Point3D p3 = {point.x - face.v3.x, point.y - face.v3.y, point.z - face.v3.z};
+    Point3D p4 = {point.x - face.v4.x, point.y - face.v4.y, point.z - face.v4.z};
+
+    // Cross products to determine if the point is inside the face
+    float cross1 = v1v2.x * p1.y - v1v2.y * p1.x;
+    float cross2 = v2v3.x * p2.y - v2v3.y * p2.x;
+    float cross3 = v3v4.x * p3.y - v3v4.y * p3.x;
+    float cross4 = v4v1.x * p4.y - v4v1.y * p4.x;
+
+    // Check if all cross products have the same sign (or are zero)
+    if ((cross1 > 0 && cross2 > 0 && cross3 > 0 && cross4 > 0) ||
+        (cross1 < 0 && cross2 < 0 && cross3 < 0 && cross4 < 0) ||
+        (cross1 == 0 && cross2 == 0 && cross3 == 0 && cross4 == 0)) {
+        return 1; // Point is inside the face
+    } else {
+        return 0; // Point is outside the face
+    }
+}
+
+void printCube(Face cubeFaces[6], int center[2])
+{
+    for(int i = 0; i < 6; i++)
+        {
+            printFace(cubeFaces[i], center);
+        }
+}/*
+void printCube(Face cubeFaces[6], int center[2]) {
+    int closestFaceIndex = -1;
+    double maxZ = -INFINITY;  // Start with the smallest possible value
+
+    // Find the face with the largest average z-value
+    for (int i = 0; i < 6; i++) {
+        double avgZ = (cubeFaces[i].v1.z + cubeFaces[i].v2.z + cubeFaces[i].v3.z + cubeFaces[i].v4.z) / 4.0;
+        if (avgZ > maxZ) {
+            maxZ = avgZ;
+            closestFaceIndex = i;
+        }
+    }
+
+    // Render only the closest face
+    if (closestFaceIndex >= 0) {
+        fillFace(cubeFaces[closestFaceIndex], center);
+    }
+}*/
 
 
 void printPoint3D(Point3D point, int center[2], char symbol) {
@@ -244,6 +310,31 @@ void rotateFaceYZ(Face *face, Point3D center, double theta){
     rotatePointYZ(&face->v4, center,theta);
 }
 
+void rotateCube(Face cubeFaces[6], Point3D center, double thetaX, double thetaY, double thetaZ) {
+    // Rotate each vertex of each face by applying the rotation functions
+    for (int i = 0; i < 6; i++) {
+        rotateFaceXY(&cubeFaces[i], center, thetaX);
+        rotateFaceXZ(&cubeFaces[i], center, thetaY);
+        rotateFaceYZ(&cubeFaces[i], center, thetaZ);
+    }
+}
+
+void createCube(Face cubeFaces[6]) {
+    // Define the 8 vertices of the cube, centered at (0, 0, 0) with side length 10
+    Point3D vertices[8] = {
+        {-8, -8, -8}, {-8, -8,  8}, {-8,  8, -8}, {-8,  8,  8},
+        { 8, -8, -8}, { 8, -8,  8}, { 8,  8, -8}, { 8,  8,  8}
+    };
+
+    // Define the faces of the cube by connecting the vertices
+    cubeFaces[0] = (Face) { vertices[0], vertices[1], vertices[3], vertices[2], '*' }; // Front
+    cubeFaces[1] = (Face) { vertices[4], vertices[5], vertices[7], vertices[6], '#' }; // Back
+    cubeFaces[2] = (Face) { vertices[0], vertices[4], vertices[6], vertices[2], '$' }; // Left
+    cubeFaces[3] = (Face) { vertices[1], vertices[5], vertices[7], vertices[3], '-' }; // Right
+    cubeFaces[4] = (Face) { vertices[0], vertices[1], vertices[5], vertices[4], '&' }; // Bottom
+    cubeFaces[5] = (Face) { vertices[2], vertices[3], vertices[7], vertices[6], '@' }; // Top
+}
+
 int main() {
     // Define all the constants in the beggining 
     struct timespec req;
@@ -267,9 +358,15 @@ int main() {
     clearConsole();
     Point3D pontoCentro = {0.0, 0.0, 0.0};
     //Point3D point2 = {5, 3, 2};  // Point shifted in all directions
-    double angle = M_PI / 100;
+    double angle = M_PI / 50;
 
     // fazer o for loop infinito que vai fazer a animação
+
+    Face cubeFaces[6];
+    
+    // Create the cube
+    createCube(cubeFaces);
+
 
     int continuar = 1; 
     while (continuar)
@@ -281,13 +378,17 @@ int main() {
     //rotatePointXY(&point2, pontoCentro, angle);
     //printf("x : %d\ny : %d\nz : %d\n\n", point2.x,point2.y,point2.z);
 
-    rotateFaceXY(&face, pontoCentro, angle);
-    rotateFaceXZ(&face, pontoCentro, angle);
-    rotateFaceXZ(&face, pontoCentro, angle);
-    printFace(face, center);
+
+
+    //rotateFaceXY(&face, pontoCentro, angle);
+    //rotateFaceXZ(&face, pontoCentro, angle);
+    //rotateFaceXZ(&face, pontoCentro, angle);
+    //printFace(face, center);
+    rotateCube(cubeFaces,pontoCentro, angle,angle,angle);
+    printCube(cubeFaces, center);
 
     req.tv_sec = 0;                 // Seconds
-    req.tv_nsec = 100000000L;       // Nanoseconds (100 ms = 100,000,000 ns)
+    req.tv_nsec = 200000000L;       // Nanoseconds (100 ms = 100,000,000 ns)
     nanosleep(&req, NULL);          // Pause execution for the specified time
     }
 
