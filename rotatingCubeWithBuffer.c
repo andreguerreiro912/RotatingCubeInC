@@ -248,9 +248,30 @@ void printFaceToBuffer(char *buffer, int width, int height, Face face, int cente
     }
 }
 
+float calculateZAvg(Face face) {
+    return (face.v1.z + face.v2.z + face.v3.z + face.v4.z) / 4.0f;
+}
+
+int compareFacesByZ(const void *a, const void *b) {
+    Face *faceA = (Face *)a;
+    Face *faceB = (Face *)b;
+
+    float zA = calculateZAvg(*faceA);
+    float zB = calculateZAvg(*faceB);
+
+    if (zA < zB) return -1;  // Face A comes before Face B
+    if (zA > zB) return 1;   // Face B comes before Face A
+    return 0;                // Equal Z values
+}
+
+
 
 //Print Cube to char Buffer
 void printCubeToBuffer(char *buffer, int width, int height, Face cubeFaces[6], int center[2]) {
+
+    // Sort the faces of the cube from the one that has the lowest "Z" (farther) to the one with highest "Z" (nearest)
+    qsort(cubeFaces, 6, sizeof(Face), compareFacesByZ);
+
     // Loop through each face of the cube
     for (int i = 0; i < 6; i++) {
         // Print each face to the buffer
@@ -259,12 +280,16 @@ void printCubeToBuffer(char *buffer, int width, int height, Face cubeFaces[6], i
 }
 
 //Print Cube to Console 
-void printCube(Face cubeFaces[6], int center[2])
-{
-    for(int i = 0; i < 6; i++)
-        {
-            printFace(cubeFaces[i], center);
-        }
+void printCube(Face cubeFaces[6], int center[2]){
+
+    // Sort the faces of the cube from the one that has the lowest "Z" (farther) to the one with highest "Z" (nearest)
+    qsort(cubeFaces, 6, sizeof(Face), compareFacesByZ);
+
+    // Loop through each face of the cube
+    for(int i = 0; i < 6; i++){
+        // Print each face 
+        printFace(cubeFaces[i], center);
+    }
 }
 
 //Print Point to Buffer and not to the console 
@@ -352,6 +377,22 @@ void printBuffer(char *buffer, int width, int height) {
             if (c != ' ') {  // Only print non-space characters
                 moveCursor(j, i);  // Move cursor to the position
                 putchar(c);         // Print the character at the cursor
+            }
+        }
+    }
+    fflush(stdout);  // Ensure output is displayed immediately
+}
+
+void printBufferDifferences(char *buffer, char *prevBuffer, int width, int height) {
+    for (int i = 0; i < height; i++) {
+        for (int j = 0; j < width; j++) {
+            int index = i * width + j;
+            char c = buffer[index];
+            // Only update if the character differs from the previous buffer
+            if (c != prevBuffer[index]) {
+                moveCursor(j, i);  // Move cursor to the position
+                putchar(c);       // Print the character at the cursor
+                prevBuffer[index] = c; // Update the previous buffer
             }
         }
     }
@@ -453,6 +494,20 @@ void createCube(Face cubeFaces[6]) {
     cubeFaces[5] = (Face) { vertices[2], vertices[3], vertices[7], vertices[6], '@' }; // Top
 }
 
+/*void printBufferDifferences(char *currentBuffer, char *newBuffer, int width, int height) {
+    for (int y = 0; y < height; y++) {
+        for (int x = 0; x < width; x++) {
+            int index = y * width + x;
+            if (currentBuffer[index] != newBuffer[index]) {
+                // Move the cursor to the position of the change
+                printf("\033[%d;%dH", y + 1, x + 1); // ANSI escape code for cursor movement
+                putchar(newBuffer[index]);
+            }
+        }
+    }
+    fflush(stdout);
+}*/
+
 int main() {
     // Define all the constants in the beggining 
     /*struct timespec req;
@@ -484,7 +539,7 @@ int main() {
     clearConsole();
     Point3D pontoCentro = {0.0, 0.0, 0.0};
     //Point3D point2 = {5, 3, 2};  // Point shifted in all directions
-    double angle = M_PI / 50;
+    double angle = M_PI / 20;
 
     // fazer o for loop infinito que vai fazer a animação
 
@@ -494,21 +549,24 @@ int main() {
     createCube(cubeFaces);
 
 
-    char *buffer = NULL;
+    char *buffer1 = NULL;
+    char *buffer2 = NULL;
 
     //getCenterScreen(center);
     //getTerminalDimensions(&screenWidth,&screenHeight);
 
-    initializeBuffer(&buffer, screenWidth, screenHeight);
+    initializeBuffer(&buffer2, screenWidth, screenHeight);
 
     while (1)
     {
+
+    initializeBuffer(&buffer1, screenWidth, screenHeight);
     // get the dimensions and center of the screen
 
 
 
-    clearConsole();
-    clearBuffer(buffer, screenWidth, screenHeight);
+    //clearConsole();
+    //clearBuffer(buffer2, screenWidth, screenHeight);
     //printPoint3D(pontoCentro, center, 'o');
     //printPoint3D(point2, center, '*');
     //rotatePointXY(&point2, pontoCentro, angle);
@@ -522,15 +580,20 @@ int main() {
     //printFace(face, center);
 
     rotateCube(cubeFaces,pontoCentro, angle,angle,angle);
-    printCubeToBuffer(buffer, screenWidth, screenHeight, cubeFaces, center);
-    printBuffer(buffer, screenWidth, screenHeight);
+    printCubeToBuffer(buffer1, screenWidth, screenHeight, cubeFaces, center);
+
+    printBufferDifferences(buffer1, buffer2, screenWidth,screenHeight);
 
     req.tv_sec = 0;                 // Seconds
-    req.tv_nsec = 200000000L;       // Nanoseconds (100 ms = 100,000,000 ns)
+    req.tv_nsec = 100000000L;       // Nanoseconds (100 ms = 100,000,000 ns)
     nanosleep(&req, NULL);          // Pause execution for the specified time
 
+    char *temp = buffer1;
+    buffer1 = buffer2;
+    buffer2 = temp;
+
     // Free the Buffer, clear the dinamically allocated char buffer
-    free(buffer);
+    free(buffer1);
     }
 
     return 0;
